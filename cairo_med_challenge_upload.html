@@ -1,0 +1,636 @@
+<!doctype html>
+<html lang="ar"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Cairo Med Challenge</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+<style>
+/* Layout: navy header band with an ECG trace and scrolling tabs, then one column of content panels. Gold marks the leader, crimson marks the arena. */
+:root{
+  --bg:#f2f5f9; --surface:#ffffff; --soft:#e8eef6; --ink:#0e1e33; --muted:#566679; --line:#d9e1eb;
+  --brand:#0b2545; --brand-ink:#f4f7fb; --accent:#17607a; --accent-ink:#ffffff;
+  --gold:#d5a62a; --gold-ink:#241a00; --crimson:#9b2335;
+  --good:#17784f; --good-bg:#e2f5ec; --bad:#b3261e; --bad-bg:#fde8e6; --warn-bg:#fff4d6; --warn-line:#e8cf80;
+  --sans:"Cairo",system-ui,Tahoma,Arial,sans-serif; --mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#07111d; --surface:#0e1c2e; --soft:#14263b; --ink:#e6edf6; --muted:#94a6bc; --line:#22364f;
+    --accent:#52b4d0; --accent-ink:#04121c; --gold:#e3b73f; --crimson:#e0566b;
+    --good:#4cd08f; --good-bg:#123326; --bad:#ff8a80; --bad-bg:#3a1a1a; --warn-bg:#3a3014; --warn-line:#6b5a22;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#07111d; --surface:#0e1c2e; --soft:#14263b; --ink:#e6edf6; --muted:#94a6bc; --line:#22364f;
+  --accent:#52b4d0; --accent-ink:#04121c; --gold:#e3b73f; --crimson:#e0566b;
+  --good:#4cd08f; --good-bg:#123326; --bad:#ff8a80; --bad-bg:#3a1a1a; --warn-bg:#3a3014; --warn-line:#6b5a22;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html{color-scheme:light}
+body{margin:0}
+@media (prefers-color-scheme: dark){html{color-scheme:dark}}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:15px;line-height:1.65}
+h1,h2,h3,p{margin:0}
+h2{font-size:19px;font-weight:800;text-wrap:balance}
+h3{font-size:16px;font-weight:700}
+button,select,input,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:3px solid var(--gold);outline-offset:2px}
+.wrap{max-width:1100px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.muted{color:var(--muted)}
+.mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+
+/* header */
+.band{background:linear-gradient(135deg,#071a33,#0f3a60 65%,#6e1a2c);color:var(--brand-ink)}
+.band .wrap{padding-top:18px}
+.brandrow{display:flex;justify-content:space-between;align-items:flex-start;gap:14px;flex-wrap:wrap}
+.brand{display:flex;gap:13px;align-items:center;min-width:0}
+.mark{flex:none;width:50px;height:50px;border:2px solid var(--gold);border-radius:50%;display:grid;place-items:center;color:var(--gold);font-size:24px;background:#ffffff12}
+.kicker{font-size:11px;letter-spacing:.14em;opacity:.8}
+.band h1{font-size:clamp(22px,5vw,34px);font-weight:900;letter-spacing:.06em;line-height:1.15}
+.band h1 b{color:var(--gold)}
+.sub{font-size:12px;opacity:.82;max-width:60ch}
+.who{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.who label{font-size:12px;opacity:.85}
+.who select{background:#ffffff1f;color:var(--brand-ink);border:1px solid #ffffff44;border-radius:10px;padding:8px 10px;min-height:40px}
+.who select option{color:#0e1e33;background:#fff}
+.badge{background:var(--gold);color:var(--gold-ink);padding:3px 9px;border-radius:99px;font-size:11px;font-weight:800}
+.chip{display:inline-flex;align-items:center;gap:6px;background:#ffffff1c;border-radius:99px;padding:4px 10px;font-size:12px}
+.chip i{width:8px;height:8px;border-radius:50%;background:#7bdca8;display:inline-block}
+.chip.off i{background:var(--gold)}
+.ecg{display:block;width:100%;height:30px;margin-top:10px}
+#nav{display:flex;gap:6px;overflow-x:auto;padding-top:6px;padding-bottom:12px;scrollbar-width:none}
+#nav::-webkit-scrollbar{display:none}
+#nav button{flex:none;border:0;background:#ffffff1a;color:var(--brand-ink);border-radius:10px;padding:9px 14px;font-weight:700;white-space:nowrap;min-height:40px}
+#nav button[aria-current="page"]{background:#fff;color:#0b2545}
+#nav button[hidden]{display:none}
+
+/* content */
+#view{padding-top:18px;padding-bottom:70px;display:grid;gap:16px}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:18px;min-width:0}
+.panel>h2+p{margin-top:2px}
+.stack{display:grid;gap:12px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,230px),1fr));gap:12px}
+.tile{display:grid;gap:4px;text-align:right;background:var(--soft);border:1px solid var(--line);border-radius:14px;padding:14px;min-width:0}
+button.tile:hover{border-color:var(--accent)}
+.tile .ic{font-size:11px;font-weight:800;letter-spacing:.12em;color:var(--accent);direction:ltr;text-align:right}
+.tile.arena .ic{color:var(--crimson)}
+.note{padding:11px 13px;border-radius:12px;background:var(--warn-bg);border:1px solid var(--warn-line)}
+.btn{border:0;border-radius:11px;padding:10px 16px;font-weight:800;background:var(--accent);color:var(--accent-ink);min-height:44px}
+.btn.gold{background:var(--gold);color:var(--gold-ink)}
+.btn.ghost{background:var(--soft);color:var(--ink)}
+.btn.danger{background:var(--bad-bg);color:var(--bad)}
+.btn.sm{padding:6px 12px;min-height:36px;font-size:13px}
+.btn:disabled{opacity:.5;cursor:default}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.row.between{justify-content:space-between}
+
+/* leaderboard */
+.rank{display:grid;grid-template-columns:34px 1fr auto;gap:10px;align-items:center;padding:12px 4px;border-bottom:1px solid var(--line)}
+.rank:last-child{border-bottom:0}
+.pos{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;background:var(--soft);font-weight:800;font-family:var(--mono)}
+.rank.first .pos{background:var(--gold);color:var(--gold-ink)}
+.rank .nm{font-weight:800;min-width:0}
+.rank .meta{font-size:12px;color:var(--muted)}
+.rank .sc{font-family:var(--mono);font-weight:600;font-size:18px;font-variant-numeric:tabular-nums}
+.champs{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr));gap:12px}
+.champ{border:1px solid var(--line);background:var(--soft);border-radius:14px;padding:14px;display:grid;gap:2px}
+.champ.week{border-color:var(--gold)}
+.champ .lb{font-size:12px;color:var(--muted);font-weight:700}
+.champ .who2{font-size:22px;font-weight:900}
+
+/* badges */
+.bar{height:8px;background:var(--soft);border-radius:99px;overflow:hidden}
+.bar>i{display:block;height:100%;background:var(--accent)}
+.tags{display:flex;gap:6px;flex-wrap:wrap}
+.tag{background:var(--soft);border:1px solid var(--line);border-radius:99px;padding:3px 10px;font-size:12px;font-weight:700}
+.tag.gold{background:var(--gold);color:var(--gold-ink);border-color:var(--gold)}
+
+/* quiz */
+.qhead{display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin-bottom:10px}
+.pill{background:var(--soft);border-radius:99px;padding:3px 11px;font-size:12px;font-weight:700}
+.qtext{line-height:1.5;margin:6px 0 14px}
+.emoji{font-size:72px;text-align:center;background:var(--soft);border-radius:14px;padding:14px;margin-bottom:12px}
+.opts{display:grid;gap:8px}
+.opt{display:flex;gap:10px;align-items:baseline;text-align:start;width:100%;padding:12px 14px;border:1px solid var(--line);border-radius:12px;background:var(--soft)}
+.opt b{font-family:var(--mono);color:var(--accent);flex:none}
+.opt:hover:not(:disabled){border-color:var(--accent)}
+.opt.ok{background:var(--good-bg);border-color:var(--good)}
+.opt.no{background:var(--bad-bg);border-color:var(--bad)}
+.fb{margin-top:12px;padding:12px;border-radius:12px;background:var(--soft);display:grid;gap:8px}
+.big{font-family:var(--mono);font-size:38px;font-weight:600}
+.center{text-align:center}
+
+/* arena */
+.teams{display:grid;grid-template-columns:1fr auto 1fr;gap:12px;align-items:center}
+.team{background:var(--soft);border:1px solid var(--line);border-radius:14px;padding:14px;text-align:center;font-weight:800;min-width:0}
+.team.lead{border-color:var(--gold)}
+.vs{font-weight:900;color:var(--crimson)}
+.scorebar{display:flex;justify-content:space-between;align-items:center;gap:8px;background:var(--brand);color:var(--brand-ink);border-radius:12px;padding:10px 14px}
+.scorebar b{font-family:var(--mono);font-size:24px;color:var(--gold)}
+.timer{font-family:var(--mono);font-weight:600}
+.timer.low{color:var(--bad)}
+@media (max-width:560px){.teams{grid-template-columns:1fr}.vs{text-align:center}}
+
+/* forms */
+label.f{display:grid;gap:4px;font-weight:700;font-size:13px}
+input,select,textarea{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--surface)}
+textarea{min-height:110px;resize:vertical;line-height:1.6}
+.written-box{min-height:160px}
+.two{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,200px),1fr));gap:10px}
+.list{display:grid;gap:8px}
+.item{display:flex;gap:10px;justify-content:space-between;align-items:center;background:var(--soft);border-radius:12px;padding:10px 12px;min-width:0}
+.item>div{min-width:0}
+.out{white-space:pre-wrap;background:var(--soft);border-radius:12px;padding:14px;line-height:1.75;min-height:0}
+.good{border-inline-start:5px solid var(--good);background:var(--good-bg)}
+.needs{border-inline-start:5px solid var(--gold);background:var(--warn-bg)}
+.wstat{display:grid;grid-template-columns:110px 1fr 52px;gap:10px;align-items:center}
+.wstat span:last-child{font-family:var(--mono);text-align:left}
+#toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(16px + env(safe-area-inset-bottom,0px));background:var(--brand);color:var(--brand-ink);padding:10px 16px;border-radius:12px;font-weight:700;box-shadow:0 8px 28px #0006;max-width:calc(100% - 32px);opacity:0;pointer-events:none;transition:opacity .2s;z-index:50}
+#toast.on{opacity:1}
+@media (prefers-reduced-motion: reduce){#toast{transition:none}}
+</style>
+</head>
+<body>
+<div id="root" dir="rtl" lang="ar">
+<header class="band"><div class="wrap">
+  <div class="brandrow">
+    <div class="brand">
+      <span class="mark" aria-hidden="true">&#10010;</span>
+      <div>
+        <div class="kicker" dir="ltr">KASR AL AINY · CAIRO UNIVERSITY</div>
+        <h1 dir="ltr">CAIRO MED <b>CHALLENGE</b></h1>
+        <div class="sub" dir="ltr">First Year · Term 1 · Module 101: Anatomy + Histology · Module 102: Physiology + Biochemistry</div>
+      </div>
+    </div>
+    <div class="who">
+      <label for="meSel">اللاعب</label>
+      <select id="meSel"></select>
+      <span id="mgrBadge" class="badge" hidden>MANAGER</span>
+      <span id="conn" class="chip off"><i></i><span>جارٍ الاتصال</span></span>
+    </div>
+  </div>
+  <svg class="ecg" viewBox="0 0 600 30" preserveAspectRatio="none" aria-hidden="true"><path d="M0 16 H110 L124 16 L134 4 L146 27 L158 16 H290 L304 16 L314 2 L327 29 L339 16 H600" fill="none" stroke="#d5a62a" stroke-width="1.6" vector-effect="non-scaling-stroke" opacity=".85"/></svg>
+  <nav id="nav" aria-label="التنقل">
+    <button data-nav="home">الرئيسية</button>
+    <button data-nav="modules">المواد</button>
+    <button data-nav="board">الترتيب</button>
+    <button data-nav="badges">الإنجازات</button>
+    <button data-nav="written">أسئلة مقالي</button>
+    <button data-nav="arena">حلبة 2 ضد 2</button>
+    <button data-nav="ai">المساعد الطبي</button>
+    <button data-nav="manager" id="navMgr" hidden>الإدارة</button>
+  </nav>
+</div></header>
+<main class="wrap" id="view"></main>
+<div id="toast" role="status" aria-live="polite"></div>
+</div>
+
+<script>
+(function(){
+"use strict";
+/* ===== SETTINGS: paste your Supabase values here ===== */
+var SB_URL="https://oabambbcruennbbwgulc.supabase.co";
+var SB_KEY="sb_publishable_OxiVEhwMl3geUrOz-2AnIQ_rGbpTPN8";
+var MGR_HASH="f12e4b7960c6de041d075194bd463199cda467edf41fd1788649e2f2d165d64c";
+/* ===================================================== */
+var SB_ON=/^https:\/\//.test(SB_URL)&&SB_KEY.length>20;
+var PLAYERS=["Mahmoud","Karim","Ahmed","Mohanned"];
+var SUBJECTS=["Anatomy","Histology","Physiology","Biochemistry"];
+var MODS={101:["Anatomy","Histology"],102:["Physiology","Biochemistry"]};
+var L=["A","B","C","D"];
+var $=function(s){return document.querySelector(s)};
+function esc(s){return String(s==null?"":s).replace(/[&<>"']/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]})}
+function lsGet(k){try{return JSON.parse(localStorage.getItem(k))}catch(e){return null}}
+function lsSet(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}
+function shuffle(a){a=a.slice();for(var i=a.length-1;i>0;i--){var j=Math.floor(Math.random()*(i+1));var t=a[i];a[i]=a[j];a[j]=t}return a}
+function clone(o){return JSON.parse(JSON.stringify(o))}
+function cap(n){try{return window.claude&&window.claude.use?window.claude.use(n).catch(function(){return null}):Promise.resolve(null)}catch(e){return Promise.resolve(null)}}
+
+/* ---------- built-in question bank: [subject, difficulty, question, options, correct index] ---------- */
+var RAW=[
+["Anatomy","Easy","Which plane divides the body into anterior and posterior parts?",["Sagittal","Coronal","Transverse","Oblique"],1],
+["Anatomy","Easy","The anatomical term 'medial' means:",["Away from the midline","Toward the midline","Far from the trunk","Toward the skin surface"],1],
+["Anatomy","Easy","The term 'proximal' describes a structure that is:",["Farther from the point of attachment","Closer to the point of attachment","Toward the back","Toward the front"],1],
+["Anatomy","Medium","Which bone belongs to the axial skeleton?",["Femur","Humerus","Sternum","Radius"],2],
+["Anatomy","Medium","How many cervical vertebrae does a human have?",["5","7","9","12"],1],
+["Anatomy","Medium","Which bone contains the foramen magnum?",["Frontal","Parietal","Occipital","Temporal"],2],
+["Anatomy","Medium","A movement that decreases the angle between two bones at a joint is:",["Extension","Abduction","Flexion","Rotation"],2],
+["Anatomy","Hard","Which nerve passes through the carpal tunnel?",["Ulnar nerve","Median nerve","Radial nerve","Axillary nerve"],1],
+["Histology","Easy","Goblet cells mainly secrete:",["Collagen","Mucus","Insulin","Bile"],1],
+["Histology","Easy","Which epithelium is specialized for rapid diffusion?",["Simple squamous","Simple cuboidal","Stratified squamous","Transitional"],0],
+["Histology","Easy","Transitional epithelium (urothelium) lines the:",["Trachea","Urinary bladder","Esophagus","Small intestine"],1],
+["Histology","Medium","The structural unit of compact bone is the:",["Sarcomere","Osteon","Nephron","Lobule"],1],
+["Histology","Medium","Which cell produces collagen in connective tissue?",["Fibroblast","Macrophage","Mast cell","Plasma cell"],0],
+["Histology","Medium","Which type of cartilage is found in the intervertebral discs?",["Hyaline","Elastic","Fibrocartilage","Articular only"],2],
+["Histology","Medium","The contractile unit of skeletal muscle is the:",["Neuron","Sarcomere","Osteon","Lobule"],1],
+["Histology","Hard","Which junction prevents paracellular movement between epithelial cells?",["Gap junction","Tight junction","Desmosome","Hemidesmosome"],1],
+["Physiology","Easy","The normal pacemaker of the heart is the:",["AV node","SA node","Bundle of His","Purkinje fibers"],1],
+["Physiology","Easy","Which hormone lowers blood glucose?",["Glucagon","Insulin","Cortisol","Adrenaline"],1],
+["Physiology","Easy","The functional unit of the kidney is the:",["Neuron","Nephron","Osteon","Sarcomere"],1],
+["Physiology","Medium","The resting membrane potential is mainly determined by permeability to:",["Na+","K+","Ca2+","Mg2+"],1],
+["Physiology","Medium","The rising phase of a neuronal action potential is mainly due to:",["Na+ influx","K+ influx","Ca2+ efflux","Cl- influx"],0],
+["Physiology","Medium","The approximate resting membrane potential of a neuron is:",["+70 mV","0 mV","-70 mV","-150 mV"],2],
+["Physiology","Medium","Repolarization of a neuron is mainly due to:",["Na+ influx","K+ efflux","Ca2+ influx","Cl- efflux"],1],
+["Physiology","Medium","Insulin is secreted by which pancreatic cells?",["Alpha cells","Beta cells","Delta cells","Acinar cells"],1],
+["Physiology","Hard","During the absolute refractory period a second action potential cannot occur mainly because:",["K+ channels are closed","Na+ channels are inactivated","Ca2+ is absent","ATP is depleted"],1],
+["Biochemistry","Easy","The basic units of proteins are:",["Fatty acids","Amino acids","Nucleotides","Monosaccharides"],1],
+["Biochemistry","Easy","The immediate energy currency of the cell is:",["DNA","ATP","RNA","Urea"],1],
+["Biochemistry","Easy","Glycolysis takes place in the:",["Mitochondrial matrix","Cytosol","Nucleus","Lysosome"],1],
+["Biochemistry","Medium","A peptide bond joins:",["Two amino acids","Two fatty acids","Two sugars","Two nucleotides"],0],
+["Biochemistry","Medium","Which amino acid is not chiral?",["Alanine","Glycine","Serine","Valine"],1],
+["Biochemistry","Medium","Which of these is an essential amino acid?",["Alanine","Glycine","Leucine","Serine"],2],
+["Biochemistry","Medium","Enzymes increase reaction rate by:",["Raising the activation energy","Lowering the activation energy","Changing the equilibrium constant","Adding energy to the substrate"],1],
+["Biochemistry","Hard","Which amino acid contains a sulfhydryl group?",["Lysine","Cysteine","Valine","Alanine"],1],
+["Biochemistry","Hard","The alpha helix is mainly stabilized by:",["Disulfide bonds","Hydrogen bonds","Ionic bonds only","Peptide bonds only"],1]
+].map(function(r){return {s:r[0],d:r[1],q:r[2],a:r[3],c:r[4]}});
+
+var VIS=[
+ {e:"🫀",sys:"Cardiovascular system"},{e:"🫁",sys:"Respiratory system"},
+ {e:"🧠",sys:"Nervous system"},{e:"🦴",sys:"Skeletal system"},{e:"🦷",sys:"Digestive system"}
+];
+var SYSTEMS=["Cardiovascular system","Respiratory system","Nervous system","Skeletal system","Digestive system","Urinary system","Endocrine system"];
+
+var WRITTEN=[
+ {s:"Anatomy",q:"Write the anatomical position and mention its main features.",m:"The body is erect, head and eyes facing forward, upper limbs by the sides with palms facing forward, and lower limbs together with feet directed forward.",k:["erect|upright|standing","forward|anterior","palm","side"]},
+ {s:"Histology",q:"Describe simple squamous epithelium and give one example of where it is found.",m:"A single layer of flattened cells with thin cytoplasm and flattened nuclei, specialized for diffusion and filtration. Examples: alveoli, endothelium.",k:["single|one layer","flat|squamous","diffusion|filtration|exchange"]},
+ {s:"Physiology",q:"Explain briefly why the SA node is called the pacemaker of the heart.",m:"The SA node has spontaneous rhythmic depolarization and normally reaches threshold first, generating the impulse that starts each heartbeat.",k:["spontaneous|automatic","depolari","threshold|fastest|highest rate","heartbeat|impulse|rhythm"]},
+ {s:"Biochemistry",q:"What is a peptide bond? State what molecules it connects.",m:"An amide bond formed between the carboxyl group of one amino acid and the amino group of another, with loss of water.",k:["carboxyl","amino","water|condensation|dehydration","amide"]},
+ {s:"Biochemistry",q:"Why is cysteine classified as a sulfur-containing amino acid?",m:"Its side chain contains a sulfhydryl (thiol) group, -SH, which contains sulfur.",k:["sulfhydryl|thiol|-sh","sulfur|sulphur","side chain|r group"]},
+ {s:"Physiology",q:"Differentiate between depolarization and repolarization of a typical neuron.",m:"Depolarization moves the membrane potential toward less negative/positive values, mainly by Na+ influx. Repolarization returns it toward the negative resting value, mainly by K+ efflux.",k:["na+|sodium","k+|potassium","influx|enter|inside","efflux|leave|outside|exit"]}
+];
+
+/* ---------- state ---------- */
+var S={players:{},tests:[],bank:[]};
+var me=lsGet("cmc.me"); if(PLAYERS.indexOf(me)<0)me="";
+var db=null, online=false, mgr=false, readOnly=false, booted=false;
+var view="home", mod=null, subj=null, activeTimer=null, chain=Promise.resolve();
+var arena={teams:null,wins:[0,0],games:0,champ:-1,awarded:false};
+
+function keys(){var n=new Date(),d=new Date(n.getFullYear(),n.getMonth(),n.getDate());d.setDate(d.getDate()-((d.getDay()+1)%7));var p=function(x){return String(x).padStart(2,"0")};return{w:d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate()),m:n.getFullYear()+"-"+p(n.getMonth()+1)}}
+function blank(){return {score:0,streak:0,best:0,week:{k:"",p:0},month:{k:"",p:0},ans:{}}}
+function P(n){var p=S.players[n]||blank();p.week=p.week||{k:"",p:0};p.month=p.month||{k:"",p:0};p.ans=p.ans||{};return p}
+function mut(n){var p=S.players[n];if(!p)p=S.players[n]=blank();var k=keys();if(!p.week||p.week.k!==k.w)p.week={k:k.w,p:0};if(!p.month||p.month.k!==k.m)p.month={k:k.m,p:0};p.ans=p.ans||{};return p}
+function weekPts(n){var p=P(n);return p.week.k===keys().w?p.week.p:0}
+function monthPts(n){var p=P(n);return p.month.k===keys().m?p.month.p:0}
+function allBank(){return RAW.concat(S.bank.map(function(b){return {s:b.s,d:b.d,q:b.q,a:b.a,c:b.c}}))}
+function bankCount(s){return allBank().filter(function(q){return q.s===s}).length}
+function shuffleQ(q){var idx=shuffle([0,1,2,3]);return {s:q.s,d:q.d,q:q.q,a:idx.map(function(i){return q.a[i]}),c:idx.indexOf(q.c)}}
+
+function toast(t){var el=$("#toast");el.textContent=t;el.classList.add("on");clearTimeout(toast.t);toast.t=setTimeout(function(){el.classList.remove("on")},3200)}
+
+/* ---------- saving ---------- */
+function saveLocal(){lsSet("cmc.local",{players:S.players,tests:S.tests,bank:S.bank})}
+var pending=0;
+function sb(path,o){o=o||{};var h={apikey:SB_KEY};if(SB_KEY.indexOf("sb_")!==0)h.Authorization="Bearer "+SB_KEY;if(o.body)h["Content-Type"]="application/json";if(o.prefer)h.Prefer=o.prefer;
+  return fetch(SB_URL+"/rest/v1/"+path,{method:o.method||"GET",headers:h,body:o.body?JSON.stringify(o.body):undefined}).then(function(r){
+    if(!r.ok)return r.text().then(function(t){throw {code:r.status,message:t}});
+    return r.status===204?null:r.text().then(function(t){return t?JSON.parse(t):null})})}
+function pull(rer){
+  if(!db)return Promise.resolve();
+  return Promise.all([sb("players?select=name,data"),sb("tests?select=id,data&order=created_at.asc"),sb("bank?select=id,data&order=created_at.asc")]).then(function(r){
+    online=true;if(pending>0)return;
+    var m={};r[0].forEach(function(x){m[x.name]=x.data||{}});S.players=m;
+    S.tests=r[1].map(function(x){var o=x.data||{};o.id=x.id;return o});
+    S.bank=r[2].map(function(x){var o=x.data||{};o.id=x.id;return o});
+    if(rer&&view==="manager")managerView();else refresh();
+  }).catch(function(){online=false;chrome()});
+}
+function dbSet(path,data){var p=path.split("/"),col=p[0],id=p.slice(1).join("/"),pl=col==="players";pending++;
+  chain=chain.then(function(){return sb(col+"?on_conflict="+(pl?"name":"id"),{method:"POST",body:pl?{name:id,data:data}:{id:id,data:data},prefer:"resolution=merge-duplicates,return=minimal"})})
+   .then(function(){pending--;return pull(!pl)}).catch(function(e){pending--;toast("مقدرناش نحفظ ("+((e&&e.code)||"error")+")")});return chain}
+function dbDel(path){var p=path.split("/"),col=p[0],id=p.slice(1).join("/");pending++;
+  chain=chain.then(function(){return sb(col+"?id=eq."+encodeURIComponent(id),{method:"DELETE"})})
+   .then(function(){pending--;return pull(true)}).catch(function(e){pending--;toast("مقدرناش نمسح ("+((e&&e.code)||"error")+")")});return chain}
+function persist(name){if(db)dbSet("players/"+name,clone(S.players[name]));else saveLocal()}
+
+function record(name,o){
+  if(readOnly||!name)return {bonus:0,saved:false};
+  var p=mut(name),bonus=0;
+  if(typeof o.correct==="boolean"&&o.subject){
+    var a=p.ans[o.subject]||(p.ans[o.subject]={c:0,t:0});a.t++;
+    if(o.correct){a.c++;p.streak++;if(p.streak>(p.best||0))p.best=p.streak;if(p.streak%5===0)bonus=3}else p.streak=0;
+  }
+  var add=(o.pts||0)+bonus;p.score+=add;p.week.p+=add;p.month.p+=add;
+  persist(name);return {bonus:bonus,saved:true};
+}
+function needMe(){if(me)return true;toast("اختار اسمك من القايمة فوق الأول");var s=$("#meSel");if(s)s.focus();return false}
+
+/* ---------- chrome ---------- */
+function chrome(){
+  var c=$("#conn");c.className="chip"+(online?"":" off");
+  c.lastChild.textContent=!booted?"جارٍ الاتصال":online?"أونلاين ومشترك":"على جهازك فقط";
+  $("#mgrBadge").hidden=!mgr;$("#navMgr").hidden=!(mgr||SB_ON);
+  var sel=$("#meSel");if(sel.value!==me)sel.value=me;
+  document.querySelectorAll("#nav button").forEach(function(b){var on=b.dataset.nav===view||(b.dataset.nav==="modules"&&view==="quiz"&&false);if(on)b.setAttribute("aria-current","page");else b.removeAttribute("aria-current")});
+}
+function banners(){
+  var h="";
+  if(!me)h+='<div class="note">اختار اسمك من القايمة اللي فوق عشان نحسب نقطك.</div>';
+  if(booted&&!online)h+=SB_ON?'<div class="note">مش قادرين نتصل بقاعدة البيانات دلوقتي. هنحاول تاني تلقائيًا.</div>':'<div class="note">الموقع مش متوصل بقاعدة بيانات، فالنتايج بتتحفظ على جهازك بس.</div>';
+  return h;
+}
+function clearTimer(){if(activeTimer){clearInterval(activeTimer);activeTimer=null}}
+
+/* ---------- views ---------- */
+function sortedPlayers(){return PLAYERS.slice().sort(function(a,b){return P(b).score-P(a).score})}
+function rankRows(){
+  return sortedPlayers().map(function(n,i){var p=P(n);
+    return '<div class="rank'+(i===0&&p.score>0?' first':'')+'"><span class="pos">'+(i+1)+'</span><div class="nm">'+esc(n)+'<div class="meta">ستريك '+(p.streak||0)+' · الأسبوع '+weekPts(n)+' · الشهر '+monthPts(n)+'</div></div><span class="sc">'+p.score+'</span></div>'}).join("");
+}
+function leaderOf(fn){var best=null,bp=0;PLAYERS.forEach(function(n){var v=fn(n);if(v>bp){bp=v;best=n}});return best?{n:best,p:bp}:null}
+function champBoxes(){
+  var w=leaderOf(weekPts),m=leaderOf(monthPts);
+  return '<div class="champs"><div class="champ week"><span class="lb">بطل الأسبوع</span><span class="who2">'+(w?esc(w.n):"لسه مفيش")+'</span><span class="muted mono">'+(w?w.p+" نقطة":"ابدأوا التحديات")+'</span></div>'+
+  '<div class="champ"><span class="lb">بطل الشهر</span><span class="who2">'+(m?esc(m.n):"لسه مفيش")+'</span><span class="muted mono">'+(m?m.p+" نقطة":"ابدأوا التحديات")+'</span></div></div>';
+}
+function home(){
+  $("#view").innerHTML=banners()+
+  '<section class="panel"><h2>الترتيب الحالي</h2><p class="muted">كل إجابة صح بتفرق، والترتيب بيتحدّث عند كل اللاعبين.</p><div>'+rankRows()+'</div></section>'+
+  '<section class="grid">'+
+   tile("modules","MODULES","المواد","Module 101 و Module 102 باختبارات لكل مادة.")+
+   tile("quick","QUICK","Quick Challenge","سؤال واحد، و +2 إضافية لو جاوبت صح في 8 ثواني.")+
+   tile("visual","VISUAL","Visual Challenge","اتعرّف على العضو واختار الجهاز الصح. +3.")+
+   tile("arena","ARENA","حلبة 2 ضد 2","فريقين و8 أسئلة، وأول فريق يكسب مباراتين.","arena")+
+   tile("written","WRITTEN","أسئلة مقالي","اكتب إجابتك وشوف نموذج الإجابة.")+
+   tile("ai","AI","المساعد الطبي","نقاط ضعفك وتدريب مركز وأسئلة طبية.")+
+  '</section>'+
+  '<section class="panel stack"><h2>أبطال الأسبوع والشهر</h2>'+champBoxes()+'</section>'+
+  '<section class="panel"><h2>قوانين النقاط</h2><div class="list" style="margin-top:8px">'+
+   rule("إجابة صح في الاختبار","+1")+rule("5 إجابات صح ورا بعض","+3")+rule("إنهاء اختبار كامل","+5")+rule("Quick Challenge (في 8 ثواني)","+1 و +2 بونص")+rule("Visual Challenge","+3")+rule("مقالي بإجابة مقبولة","+2")+rule("بطل حلبة 2 ضد 2 (لكل لاعب)","+10")+
+  '</div></section>';
+}
+function tile(act,ic,t,d,cls){return '<button class="tile '+(cls||"")+'" data-act="'+act+'"><span class="ic">'+ic+'</span><h3>'+t+'</h3><span class="muted">'+d+'</span></button>'}
+function rule(a,b){return '<div class="item"><span>'+a+'</span><b class="mono" dir="ltr">'+b+'</b></div>'}
+
+function modules(){
+  var h=banners();
+  if(!mod){
+    h+='<section class="panel stack"><h2>المواد</h2><div class="grid">'+[101,102].map(function(m){return '<button class="tile" data-act="openMod" data-a="'+m+'"><span class="ic" dir="ltr">MODULE '+m+'</span><h3>Module '+m+'</h3><span class="muted" dir="ltr">'+MODS[m].join(" + ")+'</span></button>'}).join("")+'</div></section>';
+  }else if(!subj){
+    h+='<section class="panel stack"><div class="row between"><h2>Module '+mod+'</h2><button class="btn ghost sm" data-act="modBack">رجوع</button></div><div class="grid">'+MODS[mod].map(function(s){
+      var n=S.tests.filter(function(t){return t.subject===s}).length;
+      return '<button class="tile" data-act="openSubj" data-a="'+s+'"><h3 dir="ltr">'+s+'</h3><span class="muted">'+bankCount(s)+' سؤال في البنك · '+n+' اختبار مضاف</span></button>'}).join("")+'</div></section>';
+  }else{
+    var ts=S.tests.filter(function(t){return t.subject===subj&&Number(t.module)===mod});
+    h+='<section class="panel stack"><div class="row between"><h2 dir="ltr">'+esc(subj)+' · Module '+mod+'</h2><button class="btn ghost sm" data-act="subjBack">رجوع</button></div>'+
+     '<div class="item"><div><h3>تدريب من بنك الأسئلة</h3><span class="muted">10 أسئلة عشوائية من '+bankCount(subj)+'</span></div><button class="btn" data-act="startBank">ابدأ</button></div>'+
+     (ts.length?ts.map(function(t){return '<div class="item"><div><h3 dir="auto">'+esc(t.name)+'</h3><span class="muted">'+t.q.length+' سؤال</span></div><button class="btn" data-act="startTest" data-a="'+esc(t.id)+'">ابدأ</button></div>'}).join(""):'<p class="muted">مفيش اختبارات مضافة للمادة دي لسه. المدير يقدر يضيف من صفحة الإدارة.</p>')+
+    '</section>';
+  }
+  $("#view").innerHTML=h;
+}
+function board(){$("#view").innerHTML=banners()+'<section class="panel"><h2>الترتيب</h2><div>'+rankRows()+'</div></section><section class="panel stack"><h2>أبطال الأسبوع والشهر</h2>'+champBoxes()+'</section>'}
+
+var BADGES=[[10,"10 نقاط"],[25,"25 نقطة"],[50,"50 نقطة"],[100,"100 نقطة"]];
+function badges(){
+  var wl=leaderOf(weekPts);
+  $("#view").innerHTML=banners()+'<section class="panel stack"><h2>الإنجازات</h2><div class="grid">'+PLAYERS.map(function(n){
+    var p=P(n),tags=[],tot=0,cor=0;
+    BADGES.forEach(function(b){if(p.score>=b[0])tags.push('<span class="tag gold">'+b[1]+'</span>')});
+    if((p.best||0)>=5)tags.push('<span class="tag">ستريك 5</span>');
+    if((p.best||0)>=10)tags.push('<span class="tag">ستريك 10</span>');
+    SUBJECTS.forEach(function(s){var a=p.ans[s];if(a){tot+=a.t;cor+=a.c}});
+    if(tot>=10&&cor/tot>=0.8)tags.push('<span class="tag">دقة فوق 80%</span>');
+    if(wl&&wl.n===n)tags.push('<span class="tag gold">بطل الأسبوع</span>');
+    var next=BADGES.filter(function(b){return p.score<b[0]})[0];
+    var pct=next?Math.min(100,Math.round(p.score/next[0]*100)):100;
+    return '<div class="tile"><h3>'+esc(n)+'</h3><div class="tags">'+(tags.join("")||'<span class="muted">لسه مفيش إنجازات</span>')+'</div><div class="bar" role="img" aria-label="التقدم"><i style="width:'+pct+'%"></i></div><span class="muted mono">'+p.score+' نقطة'+(tot?' · دقة '+Math.round(cor/tot*100)+'%':'')+'</span></div>'}).join("")+'</div></section>';
+}
+
+/* ---------- quiz engine ---------- */
+function qBlock(q,head,emoji){
+  return '<section class="panel">'+head+(emoji?'<div class="emoji" aria-hidden="true">'+emoji+'</div>':'')+'<h2 class="qtext" dir="auto">'+esc(q.q)+'</h2><div class="opts">'+q.a.map(function(o,j){return '<button class="opt" dir="auto" data-j="'+j+'"><b>'+L[j]+'</b><span>'+esc(o)+'</span></button>'}).join("")+'</div><div id="fb"></div></section>';
+}
+function lockOpts(el,j,c){el.querySelectorAll(".opt").forEach(function(b,i){b.disabled=true;if(i===c)b.classList.add("ok");else if(i===j)b.classList.add("no")})}
+
+function runQuiz(cfg){
+  view="quiz";clearTimer();chrome();
+  var who=me,i=0,right=0,pts=0,n=cfg.qs.length,el=$("#view");
+  function draw(){
+    if(i>=n)return finish();
+    var q=cfg.qs[i];
+    el.innerHTML=qBlock(q,'<div class="qhead"><span class="pill">'+esc(cfg.title)+'</span><span class="muted">'+(i+1)+' / '+n+'</span><span class="mono" dir="ltr">+'+pts+'</span></div>');
+    el.querySelectorAll(".opt").forEach(function(b){b.onclick=function(){pick(+b.dataset.j)}});
+  }
+  function pick(j){
+    var q=cfg.qs[i],ok=j===q.c;lockOpts(el,j,q.c);
+    var r=record(who,{pts:ok?1:0,correct:ok,subject:q.s});
+    if(ok){right++;pts+=1+r.bonus}
+    $("#fb").innerHTML='<div class="fb"><b>'+(ok?"صح":"غلط")+(ok?" +1":"")+(r.bonus?" · ستريك 5 +"+r.bonus:"")+'</b>'+(ok?"":'<span dir="auto">الإجابة الصح: '+L[q.c]+'. '+esc(q.a[q.c])+'</span>')+'<button class="btn" id="nx">'+(i+1>=n?"النتيجة":"التالي")+'</button></div>';
+    $("#nx").onclick=function(){i++;draw()};$("#nx").focus();
+  }
+  function finish(){
+    var bonus=cfg.noBonus?0:5;if(bonus)record(who,{pts:bonus});
+    el.innerHTML='<section class="panel center stack"><h2>خلصت التحدي</h2><p>اللاعب: <b>'+esc(who)+'</b></p><div class="big">'+right+' / '+n+'</div><p class="muted">'+(readOnly?"النتيجة مش محفوظة (صلاحية مشاهدة).":"+"+(pts+bonus)+" نقطة"+(bonus?" شاملة بونص الإنهاء":""))+'</p><div class="row" style="justify-content:center"><button class="btn" data-act="board">شوف الترتيب</button><button class="btn ghost" data-act="modules">رجوع للمواد</button></div></section>';
+  }
+  draw();
+}
+function runSingle(cfg){
+  view="quiz";clearTimer();chrome();
+  var el=$("#view"),item=cfg.make(),q=item.q,t0=Date.now(),who=me;
+  el.innerHTML=qBlock(q,'<div class="qhead"><span class="pill">'+esc(cfg.title)+'</span><span class="muted">'+esc(who)+'</span></div>',item.emoji);
+  el.querySelectorAll(".opt").forEach(function(b){b.onclick=function(){
+    var j=+b.dataset.j,ok=j===q.c,secs=(Date.now()-t0)/1000;lockOpts(el,j,q.c);
+    var sc=cfg.score(ok,secs),r=record(who,{pts:sc.pts,correct:ok,subject:q.s});
+    $("#fb").innerHTML='<div class="fb"><b>'+(ok?"صح":"غلط")+(sc.pts?" +"+sc.pts:"")+(sc.tag?" · "+sc.tag:"")+(r.bonus?" · ستريك 5 +"+r.bonus:"")+'</b>'+(ok?"":'<span dir="auto">الإجابة الصح: '+L[q.c]+'. '+esc(q.a[q.c])+'</span>')+(readOnly?'<span class="muted">النتيجة مش محفوظة.</span>':'')+'<div class="row"><button class="btn" id="nx">سؤال جديد</button><button class="btn ghost" data-act="board">الترتيب</button></div></div>';
+    $("#nx").onclick=function(){runSingle(cfg)};$("#nx").focus();
+  }});
+}
+function startQuick(){if(!needMe())return;runSingle({title:"Quick Challenge",make:function(){return {q:shuffleQ(allBank()[Math.floor(Math.random()*allBank().length)])}},score:function(ok,s){return ok?(s<=8?{pts:3,tag:"سرعة +2"}:{pts:1}):{pts:0}}})}
+function startVisual(){if(!needMe())return;runSingle({title:"Visual Challenge",make:function(){
+  var v=VIS[Math.floor(Math.random()*VIS.length)],opts=shuffle([v.sys].concat(shuffle(SYSTEMS.filter(function(s){return s!==v.sys})).slice(0,3)));
+  return {emoji:v.e,q:{s:"Anatomy",d:"Easy",q:"أي جهاز يرتبط مباشرة بالعضو ده؟",a:opts,c:opts.indexOf(v.sys)}}},score:function(ok){return ok?{pts:3}:{pts:0}}})}
+
+/* ---------- written ---------- */
+function startWritten(){
+  view="written";clearTimer();chrome();
+  var qs=shuffle(WRITTEN),i=0,score=0,el=$("#view");
+  function draw(){
+    if(i>=qs.length){el.innerHTML='<section class="panel center stack"><h2>خلصت الأسئلة المقالي</h2><div class="big">'+score+' / '+qs.length+'</div><p class="muted">'+(score>=5?"ممتاز جدًا":"راجع نماذج الإجابة وحاول تاني")+'</p><div class="row" style="justify-content:center"><button class="btn" data-act="written">جولة جديدة</button><button class="btn ghost" data-act="board">الترتيب</button></div></section>';return}
+    var q=qs[i];
+    el.innerHTML=banners()+'<section class="panel stack"><div class="qhead"><span class="pill" dir="ltr">'+q.s+'</span><span class="muted">'+(i+1)+' / '+qs.length+'</span></div><h2 dir="auto" class="qtext">'+esc(q.q)+'</h2><p class="muted">اكتب إجابتك بمصطلحات إنجليزي. التقييم بالكلمات المفتاحية، فقارن إجابتك بنموذج الإجابة.</p><label class="f" for="wa">إجابتك<textarea id="wa" class="written-box" dir="auto"></textarea></label><button class="btn" id="wgo">صحّح إجابتي</button><div id="wfb"></div></section>';
+    $("#wgo").onclick=function(){
+      var box=$("#wa"),ans=box.value.trim().toLowerCase();if(!ans){toast("اكتب إجابتك الأول");return}
+      var hits=q.k.filter(function(g){return g.split("|").some(function(w){return ans.indexOf(w.trim())>=0})}).length,pct=Math.round(hits/q.k.length*100),ok=pct>=50;
+      box.disabled=true;$("#wgo").hidden=true;if(ok){score++;if(me)record(me,{pts:2})}
+      $("#wfb").innerHTML='<div class="fb '+(ok?"good":"needs")+'"><h3>'+(ok?"إجابة مقبولة"+(me&&!readOnly?" +2":""):"محتاجة تحسين")+'</h3><span class="mono">تقييم مبدئي '+pct+'%</span><span dir="auto"><b>نموذج الإجابة:</b> '+esc(q.m)+'</span><button class="btn" id="wnx">'+(i+1>=qs.length?"النتيجة":"السؤال التالي")+'</button></div>';
+      $("#wnx").onclick=function(){i++;draw()};
+    };
+  }
+  draw();
+}
+
+/* ---------- arena ---------- */
+function arenaView(){
+  view="arena";clearTimer();
+  var a=arena,h=banners()+'<section class="panel stack"><h2>حلبة 2 ضد 2</h2><p class="muted">فريقين، كل مباراة 8 أسئلة بالتبادل و20 ثانية للسؤال. أول فريق يكسب مباراتين يبقى البطل.</p>';
+  if(!a.teams){h+='<button class="btn gold" data-act="arenaSplit">قسّم الفريقين عشوائيًا</button>'}
+  else{
+    var tn=function(t){return esc(t[0])+" + "+esc(t[1])};
+    h+='<div class="teams"><div class="team'+(a.wins[0]>a.wins[1]?' lead':'')+'">'+tn(a.teams[0])+'<div class="big">'+a.wins[0]+'</div></div><div class="vs">VS</div><div class="team'+(a.wins[1]>a.wins[0]?' lead':'')+'">'+tn(a.teams[1])+'<div class="big">'+a.wins[1]+'</div></div></div>';
+    if(a.champ>=0){
+      h+='<div class="note"><b>البطل: '+tn(a.teams[a.champ])+'</b></div><div class="row">'+(a.awarded?'<span class="tag gold">اتسجلت +10 لكل لاعب</span>':'<button class="btn gold" data-act="arenaAward">سجّل +10 لكل لاعب في الفريق البطل</button>')+'<button class="btn ghost" data-act="arenaSplit">بطولة جديدة</button></div>';
+    }else{
+      h+='<div class="row"><button class="btn" data-act="arenaPlay">ابدأ المباراة '+(a.games+1)+'</button><button class="btn ghost" data-act="arenaSplit">تقسيم جديد</button></div>';
+    }
+  }
+  $("#view").innerHTML=h+'</section>';chrome();
+}
+function arenaSplit(){var p=shuffle(PLAYERS);arena={teams:[[p[0],p[1]],[p[2],p[3]]],wins:[0,0],games:0,champ:-1,awarded:false};arenaView()}
+function arenaAward(){
+  if(arena.awarded||arena.champ<0)return;
+  if(readOnly){toast("صلاحيتك مشاهدة فقط");return}
+  arena.teams[arena.champ].forEach(function(n){record(n,{pts:10})});arena.awarded=true;toast("اتسجلت +10 لكل لاعب في الفريق البطل");arenaView();
+}
+function arenaPlay(){
+  view="match";chrome();
+  var t=arena.teams,names=t.map(function(x){return x[0]+" + "+x[1]}),qs=shuffle(allBank()).slice(0,8).map(shuffleQ),i=0,sc=[0,0],turn=0,t0=0,locked=false,el=$("#view"),base={Easy:1,Medium:2,Hard:3};
+  function draw(){
+    clearTimer();locked=false;
+    if(i>=qs.length)return end();
+    var q=qs[i];t0=Date.now();
+    el.innerHTML='<section class="panel stack"><div class="scorebar"><span>'+esc(names[0])+'</span><b>'+sc[0]+' — '+sc[1]+'</b><span>'+esc(names[1])+'</span></div><div class="qhead"><span class="pill" dir="ltr">'+q.s+' · '+q.d+'</span><span class="muted">سؤال '+(i+1)+' / '+qs.length+'</span><span class="timer" id="tm" dir="ltr">20s</span></div><p>الدور على: <b>'+esc(names[turn])+'</b></p><h2 dir="auto" class="qtext">'+esc(q.q)+'</h2><div class="opts">'+q.a.map(function(o,j){return '<button class="opt" dir="auto" data-j="'+j+'"><b>'+L[j]+'</b><span>'+esc(o)+'</span></button>'}).join("")+'</div><div id="fb"></div></section>';
+    el.querySelectorAll(".opt").forEach(function(b){b.onclick=function(){resolve(+b.dataset.j)}});
+    activeTimer=setInterval(function(){var left=20-Math.floor((Date.now()-t0)/1000),tm=$("#tm");if(tm){tm.textContent=Math.max(0,left)+"s";tm.classList.toggle("low",left<=5)}if(left<=0)resolve(-1)},250);
+  }
+  function resolve(j){
+    if(locked)return;locked=true;clearTimer();
+    var q=qs[i],ok=j===q.c,secs=(Date.now()-t0)/1000,g=0;lockOpts(el,j,q.c);
+    if(ok){g=base[q.d]+(secs<=5?1:0);sc[turn]+=g}
+    $("#fb").innerHTML='<div class="fb"><b>'+(j<0?"خلص الوقت":ok?"صح +"+g+(secs<=5?" سرعة":""):"غلط")+'</b>'+(ok?"":'<span dir="auto">الإجابة الصح: '+L[q.c]+'. '+esc(q.a[q.c])+'</span>')+'</div>';
+    setTimeout(function(){if(view!=="match")return;i++;turn^=1;draw()},1400);
+  }
+  function end(){
+    var w=sc[0]===sc[1]?-1:(sc[0]>sc[1]?0:1);
+    if(w>=0){arena.wins[w]++;arena.games++;if(arena.wins[w]>=2)arena.champ=w}
+    el.innerHTML='<section class="panel center stack"><h2>'+(w<0?"تعادل":esc(names[w])+" كسب المباراة")+'</h2><div class="big">'+sc[0]+' — '+sc[1]+'</div><p class="muted">'+(w<0?"المباراة متحسبتش. العبوا مباراة تانية.":arena.champ>=0?"عندنا بطل للبطولة.":"النتيجة في البطولة "+arena.wins[0]+" — "+arena.wins[1])+'</p><button class="btn gold" data-act="arena">رجوع للحلبة</button></section>';
+  }
+  draw();
+}
+
+/* ---------- AI assistant ---------- */
+function report(n){var p=P(n);return SUBJECTS.map(function(s){var a=p.ans[s]||{c:0,t:0};return {s:s,c:a.c,t:a.t,rate:a.t?Math.round(a.c/a.t*100):null}})}
+function weakest(r){var known=r.filter(function(x){return x.t>=3});if(!known.length)known=r.filter(function(x){return x.t>0});if(!known.length)return null;return known.slice().sort(function(a,b){return a.rate-b.rate})[0]}
+function aiView(){
+  view="ai";clearTimer();
+  var h=banners()+'<section class="panel stack"><h2>المساعد الطبي</h2>';
+  if(!me){h+='<p class="muted">اختار اسمك من القايمة فوق عشان أحلّل نقاط ضعفك.</p></section>'}
+  else{
+    var r=report(me),w=weakest(r),strong=r.filter(function(x){return x.t>=3}).sort(function(a,b){return b.rate-a.rate})[0];
+    var advice=!w?"لسه مفيش بيانات كفاية. حل كام اختبار وبعدها هقدر أحدد نقاط ضعفك.":
+      "أضعف مادة عندك حاليًا "+w.s+" بنسبة "+w.rate+"%. "+(w.rate<60?"ابدأ بأسئلة سهلة ثم متوسطة. ":w.rate<80?"مستواك متوسط وعايز تدريب مركز. ":"مستواك كويس ولسه فيه مجال للتحسين. ")+(strong&&strong.s!==w.s?"أقوى مادة عندك "+strong.s+" ("+strong.rate+"%).":"");
+    h+='<p>'+esc(advice)+'</p><div class="stack">'+r.map(function(x){return '<div class="wstat"><span dir="ltr">'+x.s+'</span><div class="bar"><i style="width:'+(x.rate||0)+'%"></i></div><span>'+(x.rate==null?"-":x.rate+"%")+'</span></div>'}).join("")+'</div><div class="row"><button class="btn" data-act="weak">ابدأ تدريب نقاط الضعف</button></div></section>';
+  }
+  h+='<section class="panel stack"><h3>اسأل سؤال طبي</h3><p class="muted">بجاوب على الأسئلة الطبية بس. المساعد مش بيألف مراجع من الذاكرة، فاستخدم رابط PubMed للتأكد من المصدر.</p><label class="f" for="aiQ">سؤالك<textarea id="aiQ" dir="auto" placeholder="What is the role of surfactant in preventing alveolar collapse?"></textarea></label><div class="row"><button class="btn" id="aiGo">اسأل</button><button class="btn ghost" id="aiStop" hidden>إيقاف</button></div><div id="aiOut"></div></section>';
+  $("#view").innerHTML=h;chrome();
+  var go=$("#aiGo");if(go)go.onclick=askAI;
+}
+var aiCtl=null;
+async function askAI(){
+  var q=$("#aiQ").value.trim(),out=$("#aiOut");
+  if(q.length<5){toast("اكتب سؤال طبي واضح");return}
+  var sample=await cap("sample");
+  if(!sample){out.innerHTML='<div class="note">الإجابة المباشرة مش متاحة في النسخة دي. ابحث عن سؤالك في PubMed.</div>';var pr=document.createElement("div");pr.className="row";pr.style.marginTop="10px";var pa=document.createElement("a");pa.href="https://pubmed.ncbi.nlm.nih.gov/?term="+encodeURIComponent(q);pa.target="_blank";pa.rel="noopener";pa.textContent="ابحث في PubMed";pa.className="btn ghost sm";pr.appendChild(pa);out.appendChild(pr);return}
+  aiCtl=new AbortController();$("#aiGo").disabled=true;$("#aiStop").hidden=false;$("#aiStop").onclick=function(){aiCtl&&aiCtl.abort()};
+  out.innerHTML='<div class="out" id="aiText">بفكّر</div>';var tx=$("#aiText");
+  var prompt="You are a medical education tutor for a first-year medical student at Cairo University (Kasr Al Ainy). Answer only medical and biomedical science questions; if the question is not medical, say you can only help with medical topics. Reply in the language of the question (for Arabic, use simple Egyptian Arabic with English medical terms). Be accurate and concise, under 250 words. Never cite specific papers, authors, journals, DOIs or PMIDs from memory, and never state a journal's ranking. Instead, name the kind of source to check (a standard textbook chapter, a systematic review, a guideline) and suggest 2 or 3 PubMed search terms. If you are unsure, say so.\n\nQuestion: "+q;
+  try{await sample(prompt,{signal:aiCtl.signal,onText:function(u){tx.textContent=u.text}})}
+  catch(e){var c=e&&e.code;if(c==="cancelled"){}else tx.textContent=(e&&e.text)||(c==="not_granted"?"لازم تسمح للموقع يستخدم Claude الأول.":c==="rate_limited"?"استنى شوية وجرّب تاني.":"حصلت مشكلة. جرّب تاني.")}
+  var a=document.createElement("a");a.href="https://pubmed.ncbi.nlm.nih.gov/?term="+encodeURIComponent(q);a.target="_blank";a.rel="noopener";a.textContent="ابحث عن الموضوع في PubMed";a.className="btn ghost sm";
+  var row=document.createElement("div");row.className="row";row.style.marginTop="10px";row.appendChild(a);out.appendChild(row);
+  $("#aiGo").disabled=false;$("#aiStop").hidden=true;
+}
+function startWeak(){
+  if(!needMe())return;var w=weakest(report(me)),s=w?w.s:SUBJECTS[Math.floor(Math.random()*4)];
+  var qs=shuffle(allBank().filter(function(q){return q.s===s})).slice(0,5).map(shuffleQ);
+  runQuiz({title:"تدريب · "+s,qs:qs,noBonus:true});
+}
+
+/* ---------- manager ---------- */
+function managerView(){
+  view="manager";clearTimer();
+  if(!mgr){$("#view").innerHTML='<section class="panel stack"><h2>دخول المدير</h2><p class="muted">الصفحة دي لإضافة الاختبارات وأسئلة البنك.</p><label class="f" for="mCode">كود المدير<input id="mCode" type="password" autocomplete="off"></label><button class="btn" data-act="mgrLogin">دخول</button></section>';chrome();return}
+  var opt=function(a){return a.map(function(x){return '<option>'+x+'</option>'}).join("")};
+  $("#view").innerHTML=banners()+
+  '<section class="panel stack"><h2>إضافة اختبار</h2><p class="muted">كل سطر سؤال بالشكل: السؤال | A | B | C | D | الحرف الصح</p>'+
+  '<div class="two"><label class="f" for="tMod">Module<select id="tMod"><option value="101">Module 101</option><option value="102">Module 102</option></select></label><label class="f" for="tSub">Subject<select id="tSub">'+opt(SUBJECTS)+'</select></label></div>'+
+  '<label class="f" for="tName">اسم الاختبار<input id="tName" dir="auto" placeholder="Lecture 1 - Test 1"></label>'+
+  '<label class="f" for="tQs">الأسئلة<textarea id="tQs" dir="auto" placeholder="What is...? | Answer A | Answer B | Answer C | Answer D | A"></textarea></label>'+
+  '<button class="btn" data-act="addTest">إضافة الاختبار</button>'+
+  '<h3>الاختبارات المضافة ('+S.tests.length+')</h3><div class="list">'+(S.tests.map(function(t){return '<div class="item"><div><b dir="auto">'+esc(t.name)+'</b><div class="muted" dir="ltr">Module '+esc(t.module)+' · '+esc(t.subject)+' · '+t.q.length+' Q</div></div><button class="btn danger sm" data-act="del" data-a="tests:'+esc(t.id)+'">حذف</button></div>'}).join("")||'<p class="muted">مفيش اختبارات.</p>')+'</div></section>'+
+  '<section class="panel stack"><h2>بنك الأسئلة</h2><p class="muted">الأسئلة المضافة هنا بتدخل في Quick Challenge والحلبة وتدريب نقاط الضعف.</p>'+
+  '<div class="two"><label class="f" for="bSub">Subject<select id="bSub">'+opt(SUBJECTS)+'</select></label><label class="f" for="bDif">الصعوبة<select id="bDif">'+opt(["Easy","Medium","Hard"])+'</select></label></div>'+
+  '<label class="f" for="bQ">السؤال<textarea id="bQ" dir="auto" style="min-height:80px"></textarea></label>'+
+  '<div class="two"><input id="bA" dir="auto" placeholder="A" aria-label="A"><input id="bB" dir="auto" placeholder="B" aria-label="B"><input id="bC" dir="auto" placeholder="C" aria-label="C"><input id="bD" dir="auto" placeholder="D" aria-label="D"></div>'+
+  '<label class="f" for="bC2">الإجابة الصح<select id="bC2">'+opt(L)+'</select></label><button class="btn" data-act="addQ">إضافة السؤال</button>'+
+  '<h3>أسئلة مضافة ('+S.bank.length+') · الأسئلة الجاهزة ('+RAW.length+')</h3><div class="list">'+(S.bank.slice().reverse().slice(0,25).map(function(b){return '<div class="item"><div><span class="pill" dir="ltr">'+esc(b.s)+' · '+esc(b.d)+'</span><div dir="auto">'+esc(b.q)+'</div></div><button class="btn danger sm" data-act="del" data-a="bank:'+esc(b.id)+'">حذف</button></div>'}).join("")||'<p class="muted">لسه مفيش أسئلة مضافة.</p>')+'</div></section>';
+  chrome();
+}
+function sha(t){try{return crypto.subtle.digest("SHA-256",new TextEncoder().encode(t)).then(function(b){return Array.from(new Uint8Array(b)).map(function(x){return x.toString(16).padStart(2,"0")}).join("")})}catch(e){return Promise.resolve("")}}
+function mgrLogin(){var v=$("#mCode").value;sha(v).then(function(h){if(h&&h===MGR_HASH){mgr=true;lsSet("cmc.mgr",h);managerView()}else toast("الكود غلط")})}
+function newId(){return Date.now().toString(36)+Math.random().toString(36).slice(2,6)}
+function addTest(){
+  var m=+$("#tMod").value,s=$("#tSub").value,name=$("#tName").value.trim(),raw=$("#tQs").value.trim();
+  if(MODS[m].indexOf(s)<0){toast("المادة دي مش تابعة للـ Module ده");return}
+  if(!name||!raw){toast("اكتب اسم الاختبار والأسئلة");return}
+  var skipped=0,qs=[];
+  raw.split("\n").forEach(function(l){if(!l.trim())return;var p=l.split("|").map(function(x){return x.trim()}),c=L.indexOf((p[5]||"").toUpperCase());
+    if(!p[0]||p.length<6||p.slice(1,5).some(function(x){return !x})||c<0){skipped++;return}qs.push({question:p[0],opts:p.slice(1,5),c:c})});
+  if(!qs.length){toast("مفيش سؤال صالح. راجع الشكل: السؤال | A | B | C | D | الحرف");return}
+  var t={id:newId(),module:m,subject:s,name:name,q:qs,t:Date.now(),by:me||"manager"};
+  if(db){dbSet("tests/"+t.id,t)}else{S.tests.push(t);saveLocal()}
+  toast("اتضاف الاختبار ("+qs.length+" سؤال"+(skipped?"، وتخطينا "+skipped+" سطر غلط":"")+")");
+  mod=m;subj=null;managerView();
+}
+function addQ(){
+  var q=$("#bQ").value.trim(),a=["#bA","#bB","#bC","#bD"].map(function(x){return $(x).value.trim()});
+  if(!q||a.some(function(x){return !x})){toast("اكتب السؤال والاختيارات الأربعة");return}
+  var b={id:newId(),s:$("#bSub").value,d:$("#bDif").value,q:q,a:a,c:L.indexOf($("#bC2").value),t:Date.now()};
+  if(db){dbSet("bank/"+b.id,b)}else{S.bank.push(b);saveLocal()}
+  toast("اتضاف السؤال لبنك الأسئلة");managerView();
+}
+function del(spec,btn){
+  if(!btn.dataset.armed){btn.dataset.armed="1";btn.textContent="اضغط تاني للتأكيد";setTimeout(function(){if(btn.isConnected){delete btn.dataset.armed;btn.textContent="حذف"}},3000);return}
+  var p=spec.split(":"),col=p[0],id=p.slice(1).join(":");
+  if(db)dbDel(col+"/"+id);else{S[col]=S[col].filter(function(x){return x.id!==id});saveLocal();managerView()}
+}
+
+/* ---------- navigation ---------- */
+var VIEWS={home:home,modules:modules,board:board,badges:badges,written:startWritten,arena:arenaView,ai:aiView,manager:managerView};
+function go(v){clearTimer();view=v;if(v==="modules"){mod=null;subj=null}VIEWS[v]();chrome();window.scrollTo(0,0)}
+function refresh(){chrome();if(["home","modules","board","badges"].indexOf(view)>=0)VIEWS[view]()}
+
+var ACT={
+  modules:function(){go("modules")},board:function(){go("board")},written:function(){go("written")},arena:function(){go("arena")},ai:function(){go("ai")},
+  quick:startQuick,visual:startVisual,
+  openMod:function(a){mod=+a;subj=null;modules()},modBack:function(){mod=null;subj=null;modules()},
+  openSubj:function(a){subj=a;modules()},subjBack:function(){subj=null;modules()},
+  startBank:function(){if(!needMe())return;runQuiz({title:subj,qs:shuffle(allBank().filter(function(q){return q.s===subj})).slice(0,10).map(shuffleQ)})},
+  startTest:function(id){if(!needMe())return;var t=S.tests.filter(function(x){return x.id===id})[0];if(!t)return;runQuiz({title:t.name,qs:t.q.map(function(x){return {q:x.question,a:x.opts,c:x.c,s:t.subject}})})},
+  arenaSplit:arenaSplit,arenaPlay:arenaPlay,arenaAward:arenaAward,weak:startWeak,addTest:addTest,mgrLogin:mgrLogin,addQ:addQ,del:del
+};
+$("#view").addEventListener("click",function(e){var b=e.target.closest("[data-act]");if(b&&ACT[b.dataset.act])ACT[b.dataset.act](b.dataset.a,b)});
+$("#nav").addEventListener("click",function(e){var b=e.target.closest("[data-nav]");if(b)go(b.dataset.nav)});
+(function(){var s=$("#meSel");s.innerHTML='<option value="">اختار اسمك</option>'+PLAYERS.map(function(n){return '<option>'+n+'</option>'}).join("");s.value=me;
+  s.addEventListener("change",function(){me=s.value;lsSet("cmc.me",me);refresh()})})();
+
+/* ---------- boot ---------- */
+VIEWS.home();chrome();
+if(SB_ON){
+  db=true;mgr=!!MGR_HASH&&lsGet("cmc.mgr")===MGR_HASH;
+  pull().then(function(){booted=true;refresh()});
+  setInterval(function(){if(!document.hidden)pull()},6000);
+}else{
+  var l=lsGet("cmc.local");if(l){S.players=l.players||{};S.tests=l.tests||[];S.bank=l.bank||[]}
+  mgr=true;booted=true;refresh();
+}
+})();
+</script>
+</body>
+</html>
